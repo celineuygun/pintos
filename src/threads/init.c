@@ -62,6 +62,7 @@ static void paging_init (void);
 
 static char **read_command_line (void);
 static char **parse_options (char **argv);
+static void print_hello_world (char **argv);
 static void run_actions (char **argv);
 static void usage (void);
 
@@ -292,6 +293,12 @@ run_task (char **argv)
   printf ("Execution of '%s' complete.\n", task);
 }
 
+/* Prints Hello world! */
+static void print_hello_world (char **argv)
+{
+  printf("Hello world!\n");
+}
+
 /* Executes all of the actions specified in ARGV[]
    up to the null pointer sentinel. */
 static void
@@ -309,6 +316,7 @@ run_actions (char **argv)
   static const struct action actions[] = 
     {
       {"run", 2, run_task},
+      {"hello", 1, print_hello_world},
 #ifdef FILESYS
       {"ls", 1, fsutil_ls},
       {"cat", 2, fsutil_cat},
@@ -318,6 +326,12 @@ run_actions (char **argv)
 #endif
       {NULL, 0, NULL},
     };
+    
+  /* When no arguments are passed, the kernel logs “Hello world!\n”.*/
+  if (*argv == NULL)
+  {
+      printf("Hello world!\n");
+  }
 
   while (*argv != NULL)
     {
