@@ -60,7 +60,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 static void kernel_thread (thread_func *, void *aux);
-
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
@@ -463,7 +462,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
+  sema_init (&t->sleep_sema, 0);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -577,6 +576,16 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+
+/* Compare two threads by their wake_up_ticks.
+   If true, first thread has earlier wake_up_ticks. */
+bool less_wake_up (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+{
+  const struct thread *t_left = list_entry (left, struct thread, sleep_elem);
+  const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
+  return t_left->wake_up_tick < t_right->wake_up_tick;
 }
 
 /* Offset of `stack' member within `struct thread'.

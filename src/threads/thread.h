@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -85,6 +86,11 @@ struct thread
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
+    
+    int64_t wake_up_tick; 		/* Tick at which the thread should be woken up. */
+    struct semaphore sleep_sema;
+    struct list_elem sleep_elem;        /* List element for sleep_list. */
+    
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
@@ -137,5 +143,9 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+/* Compare two threads by their wake_up_tick.
+   If true, first thread has earlier wake_up_tick */
+bool less_wake_up (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED);
 
 #endif /* threads/thread.h */
