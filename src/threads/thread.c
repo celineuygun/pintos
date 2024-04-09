@@ -199,6 +199,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  thread_yield ();
 
   return tid;
 }
@@ -236,7 +237,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, compare_prio, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -307,7 +308,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, compare_prio, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -335,6 +336,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -578,13 +580,24 @@ allocate_tid (void)
   return tid;
 }
 
-
-/* Compare two threads by their wake_up_ticks.
-   If true, first thread has earlier wake_up_ticks. */
-bool less_wake_up (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+/* Compares two threads by their priority */
+bool compare_prio (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
 {
   const struct thread *t_left = list_entry (left, struct thread, sleep_elem);
   const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
+  
+  return t_left->priority >= t_right->priority;
+}
+
+/* Compares two threads by their wake_up_tick and priority. */
+bool sleep_less (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+{
+  const struct thread *t_left = list_entry (left, struct thread, sleep_elem);
+  const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
+  
+  if (t_left->wake_up_tick == t_right->wake_up_tick)
+    return compare_prio (left, right, NULL);
+
   return t_left->wake_up_tick < t_right->wake_up_tick;
 }
 

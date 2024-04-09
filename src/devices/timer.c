@@ -111,7 +111,7 @@ timer_sleep (int64_t ticks)
   cur->wake_up_tick = start + ticks;
    
   intr_disable ();
-  list_insert_ordered (&sleep_list, &cur->sleep_elem, less_wake_up, NULL);
+  list_insert_ordered (&sleep_list, &cur->sleep_elem, sleep_less, NULL);
   intr_enable ();
 
   sema_down (&cur->sleep_sema);
