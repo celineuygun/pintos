@@ -62,7 +62,7 @@ static void paging_init (void);
 
 static char **read_command_line (void);
 static char **parse_options (char **argv);
-static void print_hello_world (char **argv);
+static void print_hello_world (char **argv UNUSED);
 static void run_actions (char **argv);
 static void usage (void);
 
@@ -294,7 +294,7 @@ run_task (char **argv)
 }
 
 /* Prints Hello world! */
-static void print_hello_world (char **argv)
+static void print_hello_world (char **argv UNUSED)
 {
   printf("Hello world!\n");
 }

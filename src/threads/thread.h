@@ -144,8 +144,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-/* Compares two threads by their priority */
-bool compare_prio (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED);
+/* Compares two threads by their priority. */
+bool less_prio (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED);
 
 /* Compares two threads by their wake_up_tick and priority. */
 bool sleep_less (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED);

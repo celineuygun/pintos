@@ -237,7 +237,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, compare_prio, NULL);
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -580,13 +580,13 @@ allocate_tid (void)
   return tid;
 }
 
-/* Compares two threads by their priority */
-bool compare_prio (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+/* Compares two threads by their priority. */
+bool less_prio (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
 {
   const struct thread *t_left = list_entry (left, struct thread, sleep_elem);
   const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
   
-  return t_left->priority > t_right->priority;
+  return t_left->priority < t_right->priority;
 }
 
 /* Compares two threads by their wake_up_tick and priority. */
@@ -596,7 +596,7 @@ bool sleep_less (const struct list_elem *left, const struct list_elem *right, vo
   const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
   
   if (t_left->wake_up_tick == t_right->wake_up_tick)
-    return compare_prio (left, right, NULL);
+    return less_prio (right, left, NULL);
   return t_left->wake_up_tick < t_right->wake_up_tick;
 }
 
@@ -606,7 +606,7 @@ bool preempts (const struct thread *t)
 {
   const struct thread *cur = running_thread ();
 
-  return compare_prio (&t->elem, &cur->elem, NULL);
+  return less_prio (&cur->elem, &t->elem, NULL);
 }
 
 /* Offset of `stack' member within `struct thread'.
