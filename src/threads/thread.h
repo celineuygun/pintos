@@ -150,4 +150,8 @@ bool compare_prio (const struct list_elem *left, const struct list_elem *right, 
 /* Compares two threads by their wake_up_tick and priority. */
 bool sleep_less (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED);
 
+/* Returns true if thread t should preempt currently running thread if
+it gets added to running queue. */
+bool preempts (const struct thread *t);
+
 #endif /* threads/thread.h */

@@ -308,7 +308,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, compare_prio, NULL);
+    list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -586,7 +586,7 @@ bool compare_prio (const struct list_elem *left, const struct list_elem *right, 
   const struct thread *t_left = list_entry (left, struct thread, sleep_elem);
   const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
   
-  return t_left->priority >= t_right->priority;
+  return t_left->priority > t_right->priority;
 }
 
 /* Compares two threads by their wake_up_tick and priority. */
@@ -597,8 +597,16 @@ bool sleep_less (const struct list_elem *left, const struct list_elem *right, vo
   
   if (t_left->wake_up_tick == t_right->wake_up_tick)
     return compare_prio (left, right, NULL);
-
   return t_left->wake_up_tick < t_right->wake_up_tick;
+}
+
+/* Returns true if thread t should preempt currently running thread if
+it gets added to running queue. */
+bool preempts (const struct thread *t)
+{
+  const struct thread *cur = running_thread ();
+
+  return compare_prio (&t->elem, &cur->elem, NULL);
 }
 
 /* Offset of `stack' member within `struct thread'.

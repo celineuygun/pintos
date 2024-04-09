@@ -93,14 +93,6 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  /*
-  int64_t start = timer_ticks ();
-
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield (); 
-  */
-  
   if (ticks <= 0)
     return;
   
@@ -204,6 +196,11 @@ timer_interrupt (struct intr_frame *args UNUSED)
     // printf("Waking up thread ID: %d, ticks: %lld, wake_up: %lld\n", t->tid, ticks, t->wake_up_tick);
     
     sema_up (&t->sleep_sema);
+    
+    /* Enforce preemption. */
+    if (preempts (t))
+      intr_yield_on_return ();
+      
     list_pop_front (&sleep_list);
   }
 }
