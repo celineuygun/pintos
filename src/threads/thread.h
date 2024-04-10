@@ -86,23 +86,42 @@ struct thread
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
-    
-    int64_t wake_up_tick; 		/* Tick at which the thread should be woken up. */
-    struct semaphore sleep_sema;
-    struct list_elem sleep_elem;        /* List element for sleep_list. */
-    
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
+    
+    int priority;                       /* Priority with donations. */
+    int priority_non_donated;		/* Priority without donations. */
+    struct list donors;			/* List of threads donating priority. */
+    struct list_elem donor_elem;	/* Donors list elem. */
+    struct thread *t_donated;		/* Donated thread. */
+    struct lock *want_lock;		/* Lock waiting */
+    int nice;                           /* Niceness. */
+    int recent_cpu;			/* Recent amount of CPU time. */   
+     
+    
     struct list_elem allelem;           /* List element for all threads list. */
+    
+    /* Owned by process.c. */
+    struct wait_status *wait_status;    /* This process's completion status. */
+    struct list children;               /* Completion status of children. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    
+    /* Alarm clock. */
+    int64_t sleep_tick; 		/* Tick at which the thread should be woken up. */
+    struct semaphore sleep_sema;
+    struct list_elem sleep_elem;        /* List element for sleep_list. */
+    
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
+    
+    /* Owned by syscall.c. */
+    struct list fds;                    /* List of file descriptors. */
+    int next_handle;                    /* Next handle value. */
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
@@ -136,6 +155,11 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
+void recompute_t_prio (struct thread *t);
+
+/* If the ready list contains a thread with a higher priority,
+   yields to it. */
+void thread_yield_to_higher_prio (void);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
@@ -144,11 +168,15 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-/* Compares two threads by their priority. */
-bool less_prio (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED);
+/* Compares two threads by their priority within a list of donors. */
+bool lower_prio_donated (const struct list_elem *, const struct list_elem *, void * UNUSED);
+/* Compares two threads by their priority within a list of threads. */
+bool lower_prio_thread (const struct list_elem *, const struct list_elem *, void * UNUSED);
+/* Compares two sleeping threads by their priority. */
+bool lower_prio_sleep (const struct list_elem *, const struct list_elem *, void * UNUSED);
 
-/* Compares two threads by their wake_up_tick and priority. */
-bool sleep_less (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED);
+/* Compares two sleeping threads by their sleep_tick and priority. */
+bool sleep_less (const struct list_elem *, const struct list_elem *, void * UNUSED);
 
 /* Returns true if thread t should preempt currently running thread if
 it gets added to running queue. */

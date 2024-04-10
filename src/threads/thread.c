@@ -331,12 +331,61 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* If the ready list contains a thread with a higher priority,
+   yields to it. */
+void 
+thread_yield_to_higher_prio (void)
+{
+  enum intr_level old_level = intr_disable ();
+  if (!list_empty (&ready_list)) 
+    {
+      struct thread *cur = thread_current ();
+      struct thread *max = list_entry (list_max (&ready_list, lower_prio_thread, NULL), struct thread, elem);
+      if (max->priority > cur->priority)
+        {
+          if (intr_context ())
+            intr_yield_on_return ();
+          else
+            thread_yield (); 
+        }
+    }
+  intr_set_level (old_level);
+}
+
+void 
+recompute_t_prio (struct thread *t)
+{
+  int old_prio = t->priority;
+  int default_prio = t->priority_non_donated;
+  int donation = PRI_MIN;
+  
+  if (!list_empty (&t->donors))
+    donation = list_entry (list_max (&t->donors, lower_prio_donated, NULL), struct thread, donor_elem)->priority;
+  t->priority = donation > default_prio ? donation : default_prio;
+  if (t->priority > old_prio && t->t_donated != NULL)
+    recompute_t_prio (t->t_donated);
+}
+
+static void 
+recompute_prio (void)
+{
+  enum intr_level old_level = intr_disable ();
+  recompute_t_prio (thread_current ());
+  thread_yield_to_higher_prio ();
+  intr_set_level (old_level);
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
-  thread_yield ();
+  if (!thread_mlfqs) 
+    {
+      struct thread *t = thread_current ();
+
+      t->priority_non_donated = new_priority;
+      recompute_prio ();
+    }
 }
 
 /* Returns the current thread's priority. */
@@ -463,8 +512,14 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->priority_non_donated = priority;
+  list_init (&t->children);
+  t->wait_status = NULL;
+  list_init (&t->fds);
+  t->next_handle = 2;
   t->magic = THREAD_MAGIC;
   sema_init (&t->sleep_sema, 0);
+  list_init (&t->donors);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -493,8 +548,12 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  else 
+    {
+      struct thread *max = list_entry (list_max (&ready_list, lower_prio_thread, NULL),  struct thread, elem);
+      list_remove (&max->elem);
+      return max;
+    }
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -580,8 +639,29 @@ allocate_tid (void)
   return tid;
 }
 
-/* Compares two threads by their priority. */
-bool less_prio (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+/* Compares two threads by their priority within a list of donors. */
+bool 
+lower_prio_donated (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED) 
+{
+  const struct thread *t_left = list_entry (left, struct thread, donor_elem);
+  const struct thread *t_right = list_entry (right, struct thread, donor_elem);
+
+  return t_left->priority < t_right->priority;
+}
+
+/* Compares two threads by their priority within a list of threads. */
+bool 
+lower_prio_thread (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+{
+  const struct thread *t_left = list_entry (left, struct thread, elem);
+  const struct thread *t_right = list_entry (right, struct thread, elem);
+  
+  return t_left->priority < t_right->priority;
+}
+
+/* Compares two sleeping threads by their priority. */
+bool 
+lower_prio_sleep (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
 {
   const struct thread *t_left = list_entry (left, struct thread, sleep_elem);
   const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
@@ -589,24 +669,26 @@ bool less_prio (const struct list_elem *left, const struct list_elem *right, voi
   return t_left->priority < t_right->priority;
 }
 
-/* Compares two threads by their wake_up_tick and priority. */
-bool sleep_less (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+/* Compares two sleeping threads by their sleep_tick and priority. */
+bool 
+sleep_less (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
 {
   const struct thread *t_left = list_entry (left, struct thread, sleep_elem);
   const struct thread *t_right = list_entry (right, struct thread, sleep_elem);
   
-  if (t_left->wake_up_tick == t_right->wake_up_tick)
-    return less_prio (right, left, NULL);
-  return t_left->wake_up_tick < t_right->wake_up_tick;
+  if (t_left->sleep_tick == t_right->sleep_tick)
+    return lower_prio_sleep (right, left, NULL);
+  return t_left->sleep_tick < t_right->sleep_tick;
 }
 
 /* Returns true if thread t should preempt currently running thread if
 it gets added to running queue. */
-bool preempts (const struct thread *t)
+bool 
+preempts (const struct thread *t)
 {
   const struct thread *cur = running_thread ();
 
-  return less_prio (&cur->elem, &t->elem, NULL);
+  return lower_prio_sleep (&cur->elem, &t->elem, NULL);
 }
 
 /* Offset of `stack' member within `struct thread'.

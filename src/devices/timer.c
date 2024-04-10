@@ -100,7 +100,7 @@ timer_sleep (int64_t ticks)
   ASSERT (intr_get_level () == INTR_ON);
 
   struct thread *cur = thread_current();
-  cur->wake_up_tick = start + ticks;
+  cur->sleep_tick = start + ticks;
    
   intr_disable ();
   list_insert_ordered (&sleep_list, &cur->sleep_elem, sleep_less, NULL);
@@ -190,11 +190,9 @@ timer_interrupt (struct intr_frame *args UNUSED)
   {
     struct thread *t = list_entry (list_front (&sleep_list), struct thread, sleep_elem);
 
-    if (ticks < t->wake_up_tick)
+    if (ticks < t->sleep_tick)
       break;
 
-    // printf("Waking up thread ID: %d, ticks: %lld, wake_up: %lld\n", t->tid, ticks, t->wake_up_tick);
-    
     sema_up (&t->sleep_sema);
     
     /* Enforce preemption. */
