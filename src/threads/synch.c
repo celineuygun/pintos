@@ -126,18 +126,6 @@ sema_up (struct semaphore *sema)
     }
   intr_set_level (old_level);
 }
-/* OLD VERSION {
-  enum intr_level old_level;
-
-  ASSERT (sema != NULL);
-
-  old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
-  sema->value++;
-  intr_set_level (old_level);
-}*/
 
 static void sema_test_helper (void *sema_);
 
@@ -238,14 +226,6 @@ lock_acquire (struct lock *lock)
   lock->holder = thread_current ();
   intr_set_level (old_level);
 }
-/* OLD VERSION {
-  ASSERT (lock != NULL);
-  ASSERT (!intr_context ());
-  ASSERT (!lock_held_by_current_thread (lock));
-
-  sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
-}*/
 
 /* Tries to acquires LOCK and returns true if successful or false
    on failure.  The lock must not already be held by the current
@@ -306,13 +286,6 @@ lock_release (struct lock *lock)
 
   intr_set_level (old_level);
 }
-/* OLD VERSION {
-  ASSERT (lock != NULL);
-  ASSERT (lock_held_by_current_thread (lock));
-
-  lock->holder = NULL;
-  sema_up (&lock->semaphore);
-}*/
 
 /* Returns true if the current thread holds LOCK, false
    otherwise.  (Note that testing whether some other thread holds
